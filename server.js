@@ -1,9 +1,19 @@
 const express = require('express');
-const puppeteer = require('puppeteer');
+// const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const cookieParser = require('cookie-parser')
+
+// store Puppeteer in an executable path
+const { executablePath } = require('puppeteer');
+
+// Add stealth plugin to puppeteer
+puppeteer.use(StealthPlugin());
 
 const app = express();
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
@@ -12,8 +22,11 @@ app.post('/start-scraping', async (req, res) => {
 
     let leadCount = 0;
 
+    // Ensure the csvUrl ends with .csv
+    const csvFileName = csvUrl.endsWith('.csv') ? csvUrl : `${csvUrl}.csv`;
+
     // Construct the CSV file path with the user's email
-    const userCsvPath = path.join(__dirname, 'csv', `${email}_${csvUrl}`);
+    const userCsvPath = path.join(__dirname, 'csv', `${email}_${csvFileName}`);
 
     // Check if the CSV file exists, if not, write the header
     if (!fs.existsSync(userCsvPath)) {
@@ -25,9 +38,16 @@ app.post('/start-scraping', async (req, res) => {
         // Start the Puppeteer browser
         console.time("ScriptRunTime");
         const browser = await puppeteer.launch({
-            headless: false, // Set to true to run headless
+            executablePath: executablePath(),
+            headless: true, // Set to true to run headless
             defaultViewport: null,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--headless'],
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu',
+            ],
         });
     
         const page = await browser.newPage();
@@ -35,20 +55,20 @@ app.post('/start-scraping', async (req, res) => {
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3');
     
         // Preserve cookies and local storage
-        const cookies = fs.existsSync('cookies.json') ? JSON.parse(fs.readFileSync('cookies.json')) : [];
-        await page.setCookie(...cookies);
+        // const cookies = fs.existsSync('cookies.json') ? JSON.parse(fs.readFileSync('cookies.json')) : [];
+        // await page.setCookie(...cookies);
     
-        // Save cookies after login
-        const currentCookies = await page.cookies();
-        fs.writeFileSync('cookies.json', JSON.stringify(currentCookies));
-    
+        // // Save cookies after login
+        // const currentCookies = await page.cookies();
+        // fs.writeFileSync('cookies.json', JSON.stringify(currentCookies));
+
         // Introduce random delays between actions
         function randomDelay(min, max) {
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
     
         // Use random delays in your loops
-        await new Promise(resolve => setTimeout(resolve, randomDelay(5000, 10000)));
+        await new Promise(resolve => setTimeout(resolve, randomDelay(4000, 8000)));
     
         await page.goto('https://app.apollo.io/#/login');
         await page.waitForSelector('input[name="email"]', { visible: true });
